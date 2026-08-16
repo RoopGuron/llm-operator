@@ -169,13 +169,13 @@ func deploymentDrifted(found, desired *appsv1.Deployment) bool {
 	}
 	for i, c := range desired.Spec.Template.Spec.InitContainers {
 		fc := found.Spec.Template.Spec.InitContainers[i]
-		if fc.Image != c.Image || !reflect.DeepEqual(fc.Command, c.Command) || !reflect.DeepEqual(fc.RestartPolicy, c.RestartPolicy) {
+		if fc.Image != c.Image || fc.ImagePullPolicy != c.ImagePullPolicy || !reflect.DeepEqual(fc.Command, c.Command) || !reflect.DeepEqual(fc.RestartPolicy, c.RestartPolicy) {
 			return true
 		}
 	}
 	for i, c := range desired.Spec.Template.Spec.Containers {
 		fc := found.Spec.Template.Spec.Containers[i]
-		if fc.Image != c.Image || !reflect.DeepEqual(fc.Env, c.Env) || !reflect.DeepEqual(fc.VolumeMounts, c.VolumeMounts) {
+		if fc.Image != c.Image || fc.ImagePullPolicy != c.ImagePullPolicy || !reflect.DeepEqual(fc.Env, c.Env) || !reflect.DeepEqual(fc.VolumeMounts, c.VolumeMounts) {
 			return true
 		}
 	}
@@ -276,9 +276,10 @@ func (r *LLMOptimizedServiceReconciler) deploymentForM5(m *aiv1alpha1.LLMOptimiz
 				ObjectMeta: metav1.ObjectMeta{Labels: labels},
 				Spec: corev1.PodSpec{
 					InitContainers: []corev1.Container{{
-						Name:    "cache-warm-puller",
-						Image:   "curlimages/curl:latest",
-						Command: []string{"sh", "-c", "until curl -s http://127.0.0.1:11434 > /dev/null; do sleep 1; done; curl -X POST http://127.0.0.1:11434/api/pull -d '{\"name\": \"" + m.Spec.ModelPath + "\"}'; sleep infinity"},
+						Name:            "cache-warm-puller",
+						Image:           "curlimages/curl:latest",
+						ImagePullPolicy: corev1.PullIfNotPresent,
+						Command:         []string{"sh", "-c", "until curl -s http://127.0.0.1:11434 > /dev/null; do sleep 1; done; curl -X POST http://127.0.0.1:11434/api/pull -d '{\"name\": \"" + m.Spec.ModelPath + "\"}'; sleep infinity"},
 						// CRITICAL: Tells K8s this runs alongside the main container instead of blocking it
 						RestartPolicy: func() *corev1.ContainerRestartPolicy {
 							p := corev1.ContainerRestartPolicyAlways
@@ -287,9 +288,10 @@ func (r *LLMOptimizedServiceReconciler) deploymentForM5(m *aiv1alpha1.LLMOptimiz
 					}},
 					Containers: []corev1.Container{
 						{
-							Image: "ollama/ollama:latest",
-							Name:  "ollama-engine",
-							Ports: []corev1.ContainerPort{{ContainerPort: 11434, Name: "api-port"}},
+							Image:           "ollama/ollama:latest",
+							Name:            "ollama-engine",
+							ImagePullPolicy: corev1.PullIfNotPresent,
+							Ports:           []corev1.ContainerPort{{ContainerPort: 11434, Name: "api-port"}},
 							Env: []corev1.EnvVar{
 								{Name: "OLLAMA_NUM_PARALLEL", Value: strconv.Itoa(int(m.Spec.MaxConcurrencyPerPod))},
 								{Name: "OLLAMA_ORIGINS", Value: "*"},
@@ -297,8 +299,9 @@ func (r *LLMOptimizedServiceReconciler) deploymentForM5(m *aiv1alpha1.LLMOptimiz
 							VolumeMounts: []corev1.VolumeMount{{Name: "cache-mount", MountPath: "/root/.ollama"}},
 						},
 						{
-							Image: "ollama-queue-exporter:local",
-							Name:  "queue-exporter",
+							Image:           "ollama-queue-exporter:local",
+							Name:            "queue-exporter",
+							ImagePullPolicy: corev1.PullIfNotPresent,
 							Ports: []corev1.ContainerPort{
 								{ContainerPort: 8081, Name: "proxy-port"},
 								{ContainerPort: 9113, Name: "metrics-port"},
