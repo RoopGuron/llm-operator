@@ -172,7 +172,7 @@ func (r *LLMOptimizedServiceReconciler) scaledObjectForM5(m *aiv1alpha1.LLMOptim
 			Triggers: []kedav1alpha1.ScaleTriggers{{
 				Type: "prometheus",
 				Metadata: map[string]string{
-					"serverAddress": "http://cluster.local",
+					"serverAddress": "http://prometheus-k8s.monitoring.svc.cluster.local:9090",
 					"metricName":    "ollama_request_queue_length",
 					"query":         "sum(ollama_request_queue_length{app=\"" + m.Name + "\"})",
 					"threshold":     concurrencyThreshold,
