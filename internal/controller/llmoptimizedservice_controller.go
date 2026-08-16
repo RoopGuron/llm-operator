@@ -112,11 +112,15 @@ func (r *LLMOptimizedServiceReconciler) Reconcile(ctx context.Context, req ctrl.
 	} else if so := r.scaledObjectForM5(&aiService); !reflect.DeepEqual(foundScaledObject.Spec.ScaleTargetRef, so.Spec.ScaleTargetRef) ||
 		!reflect.DeepEqual(foundScaledObject.Spec.MinReplicaCount, so.Spec.MinReplicaCount) ||
 		!reflect.DeepEqual(foundScaledObject.Spec.MaxReplicaCount, so.Spec.MaxReplicaCount) ||
+		!reflect.DeepEqual(foundScaledObject.Spec.CooldownPeriod, so.Spec.CooldownPeriod) ||
+		!reflect.DeepEqual(foundScaledObject.Spec.PollingInterval, so.Spec.PollingInterval) ||
 		!reflect.DeepEqual(foundScaledObject.Spec.Triggers, so.Spec.Triggers) {
 		logger.Info("ScaledObject drifted from desired spec, updating", "Name", foundScaledObject.Name)
 		foundScaledObject.Spec.ScaleTargetRef = so.Spec.ScaleTargetRef
 		foundScaledObject.Spec.MinReplicaCount = so.Spec.MinReplicaCount
 		foundScaledObject.Spec.MaxReplicaCount = so.Spec.MaxReplicaCount
+		foundScaledObject.Spec.CooldownPeriod = so.Spec.CooldownPeriod
+		foundScaledObject.Spec.PollingInterval = so.Spec.PollingInterval
 		foundScaledObject.Spec.Triggers = so.Spec.Triggers
 		if err := r.Update(ctx, &foundScaledObject); err != nil {
 			return ctrl.Result{}, err
@@ -186,6 +190,19 @@ func (r *LLMOptimizedServiceReconciler) scaledObjectForM5(m *aiv1alpha1.LLMOptim
 	// Construct threshold targets from user manifest
 	concurrencyThreshold := strconv.Itoa(int(m.Spec.MaxConcurrencyPerPod))
 
+	minReplicaCount := m.Spec.MinReplicas
+	var cooldownPeriod *int32
+	if m.Spec.ScaleToZero {
+		var zero int32 = 0
+		minReplicaCount = &zero
+
+		idleTimeout := int32(300)
+		if m.Spec.IdleTimeoutSeconds != nil {
+			idleTimeout = *m.Spec.IdleTimeoutSeconds
+		}
+		cooldownPeriod = &idleTimeout
+	}
+
 	so := &kedav1alpha1.ScaledObject{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      m.Name,
@@ -197,8 +214,9 @@ func (r *LLMOptimizedServiceReconciler) scaledObjectForM5(m *aiv1alpha1.LLMOptim
 				Kind:       "Deployment",
 				Name:       m.Name, // Pointing directly to our inference pod deployment
 			},
-			MinReplicaCount: m.Spec.MinReplicas,
+			MinReplicaCount: minReplicaCount,
 			MaxReplicaCount: m.Spec.MaxReplicas,
+			CooldownPeriod:  cooldownPeriod,
 			// Custom AI metric trigger: Query Prometheus for current queue length
 			Triggers: []kedav1alpha1.ScaleTriggers{{
 				Type: "prometheus",

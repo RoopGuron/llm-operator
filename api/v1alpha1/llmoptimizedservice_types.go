@@ -43,6 +43,19 @@ type LLMOptimizedServiceSpec struct {
 
 	// MaxConcurrencyPerPod sets parallel thread processing density per engine
 	MaxConcurrencyPerPod int32 `json:"maxConcurrencyPerPod"`
+
+	// ScaleToZero lets KEDA scale the Deployment down to 0 replicas after
+	// IdleTimeoutSeconds of no load, instead of holding at MinReplicas. Model
+	// weights stay cached on the node's hostPath volume, so scaling back up
+	// re-pulls quickly, but there is no automatic wake-on-request: at 0
+	// replicas nothing is running to observe new traffic, so bringing
+	// replicas back above 0 is a manual step (e.g. kubectl scale).
+	ScaleToZero bool `json:"scaleToZero,omitempty"`
+
+	// IdleTimeoutSeconds sets how long the queue-length metric must stay
+	// below threshold before KEDA scales to 0. Only used when ScaleToZero is
+	// true; defaults to 300 (5 minutes) if unset.
+	IdleTimeoutSeconds *int32 `json:"idleTimeoutSeconds,omitempty"`
 }
 
 // LLMOptimizedServiceStatus defines the observed state of LLMOptimizedService.
