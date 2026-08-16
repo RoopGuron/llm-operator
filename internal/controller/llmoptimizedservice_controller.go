@@ -16,6 +16,7 @@ import (
 	"strconv"
 
 	kedav1alpha1 "github.com/kedacore/keda/v2/apis/keda/v1alpha1"
+	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	aiv1alpha1 "mlo.platform/llm-operator/api/v1alpha1"
 )
 
@@ -29,6 +30,7 @@ type LLMOptimizedServiceReconciler struct {
 //+kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=keda.sh,resources=scaledobjects,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=monitoring.coreos.com,resources=servicemonitors,verbs=get;list;watch;create;update;patch;delete
 
 func (r *LLMOptimizedServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
@@ -56,7 +58,10 @@ func (r *LLMOptimizedServiceReconciler) Reconcile(ctx context.Context, req ctrl.
 		return ctrl.Result{}, err
 	} else if dep := r.deploymentForM5(&aiService); deploymentDrifted(&foundDeployment, dep) {
 		logger.Info("Deployment drifted from desired spec, updating", "Name", foundDeployment.Name)
-		foundDeployment.Spec.Replicas = dep.Spec.Replicas
+		// Replicas is deliberately left untouched here: once the KEDA ScaledObject
+		// targets this Deployment, .spec.replicas is owned by KEDA/HPA. Overwriting
+		// it back to the CR's static MinReplicas on every reconcile would fight the
+		// autoscaler and immediately undo any scale-up.
 		foundDeployment.Spec.Template.Spec.InitContainers = dep.Spec.Template.Spec.InitContainers
 		foundDeployment.Spec.Template.Spec.Containers = dep.Spec.Template.Spec.Containers
 		foundDeployment.Spec.Template.Spec.Volumes = dep.Spec.Template.Spec.Volumes
@@ -77,10 +82,12 @@ func (r *LLMOptimizedServiceReconciler) Reconcile(ctx context.Context, req ctrl.
 		return ctrl.Result{Requeue: true}, nil
 	} else if err != nil {
 		return ctrl.Result{}, err
-	} else if svc := r.serviceForM5(&aiService); !reflect.DeepEqual(foundService.Spec.Selector, svc.Spec.Selector) ||
+	} else if svc := r.serviceForM5(&aiService); !reflect.DeepEqual(foundService.Labels, svc.Labels) ||
+		!reflect.DeepEqual(foundService.Spec.Selector, svc.Spec.Selector) ||
 		!reflect.DeepEqual(foundService.Spec.Ports, svc.Spec.Ports) ||
 		foundService.Spec.Type != svc.Spec.Type {
 		logger.Info("Service drifted from desired spec, updating", "Name", foundService.Name)
+		foundService.Labels = svc.Labels
 		foundService.Spec.Selector = svc.Spec.Selector
 		foundService.Spec.Ports = svc.Spec.Ports
 		foundService.Spec.Type = svc.Spec.Type
@@ -117,6 +124,31 @@ func (r *LLMOptimizedServiceReconciler) Reconcile(ctx context.Context, req ctrl.
 		return ctrl.Result{Requeue: true}, nil
 	}
 
+	// 4. Reconcile ServiceMonitor (scrapes the queue-exporter sidecar for KEDA's Prometheus trigger)
+	var foundServiceMonitor monitoringv1.ServiceMonitor
+	err = r.Get(ctx, client.ObjectKey{Name: aiService.Name, Namespace: aiService.Namespace}, &foundServiceMonitor)
+	if err != nil && errors.IsNotFound(err) {
+		sm := r.serviceMonitorForM5(&aiService)
+		logger.Info("Generating ServiceMonitor for queue-length metrics", "Name", sm.Name)
+		if err := r.Create(ctx, sm); err != nil {
+			return ctrl.Result{}, err
+		}
+		return ctrl.Result{Requeue: true}, nil
+	} else if err != nil {
+		return ctrl.Result{}, err
+	} else if sm := r.serviceMonitorForM5(&aiService); !reflect.DeepEqual(foundServiceMonitor.Spec.Selector, sm.Spec.Selector) ||
+		!reflect.DeepEqual(foundServiceMonitor.Spec.Endpoints, sm.Spec.Endpoints) ||
+		!reflect.DeepEqual(foundServiceMonitor.Spec.TargetLabels, sm.Spec.TargetLabels) {
+		logger.Info("ServiceMonitor drifted from desired spec, updating", "Name", foundServiceMonitor.Name)
+		foundServiceMonitor.Spec.Selector = sm.Spec.Selector
+		foundServiceMonitor.Spec.Endpoints = sm.Spec.Endpoints
+		foundServiceMonitor.Spec.TargetLabels = sm.Spec.TargetLabels
+		if err := r.Update(ctx, &foundServiceMonitor); err != nil {
+			return ctrl.Result{}, err
+		}
+		return ctrl.Result{Requeue: true}, nil
+	}
+
 	return ctrl.Result{}, nil
 }
 
@@ -124,10 +156,9 @@ func (r *LLMOptimizedServiceReconciler) Reconcile(ctx context.Context, req ctrl.
 // differ from the desired state. It only compares fields this controller sets
 // (rather than the whole PodSpec) so that fields the API server defaults on
 // Create/Update don't register as permanent drift and cause an update loop.
+// Replicas is deliberately excluded: KEDA's ScaledObject owns .spec.replicas
+// after creation, and comparing it here would fight the autoscaler.
 func deploymentDrifted(found, desired *appsv1.Deployment) bool {
-	if !reflect.DeepEqual(found.Spec.Replicas, desired.Spec.Replicas) {
-		return true
-	}
 	if len(found.Spec.Template.Spec.InitContainers) != len(desired.Spec.Template.Spec.InitContainers) ||
 		len(found.Spec.Template.Spec.Containers) != len(desired.Spec.Template.Spec.Containers) {
 		return true
@@ -185,6 +216,31 @@ func (r *LLMOptimizedServiceReconciler) scaledObjectForM5(m *aiv1alpha1.LLMOptim
 	return so
 }
 
+// Scrapes the queue-exporter sidecar's /metrics endpoint and stamps the Service's
+// "app" label onto each sample, so KEDA's PromQL query (app="<name>") can find it.
+func (r *LLMOptimizedServiceReconciler) serviceMonitorForM5(m *aiv1alpha1.LLMOptimizedService) *monitoringv1.ServiceMonitor {
+	sm := &monitoringv1.ServiceMonitor{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      m.Name,
+			Namespace: m.Namespace,
+		},
+		Spec: monitoringv1.ServiceMonitorSpec{
+			Selector: metav1.LabelSelector{
+				MatchLabels: map[string]string{"app": m.Name},
+			},
+			Endpoints: []monitoringv1.Endpoint{{
+				Port:     "metrics-port",
+				Path:     "/metrics",
+				Interval: "15s",
+			}},
+			TargetLabels: []string{"app"},
+		},
+	}
+
+	_ = ctrl.SetControllerReference(m, sm, r.Scheme)
+	return sm
+}
+
 func (r *LLMOptimizedServiceReconciler) deploymentForM5(m *aiv1alpha1.LLMOptimizedService) *appsv1.Deployment {
 	labels := map[string]string{"app": m.Name}
 	var replicas int32 = 1
@@ -211,16 +267,26 @@ func (r *LLMOptimizedServiceReconciler) deploymentForM5(m *aiv1alpha1.LLMOptimiz
 							return &p
 						}(),
 					}},
-					Containers: []corev1.Container{{
-						Image: "ollama/ollama:latest",
-						Name:  "ollama-engine",
-						Ports: []corev1.ContainerPort{{ContainerPort: 11434, Name: "api-port"}},
-						Env: []corev1.EnvVar{
-							{Name: "OLLAMA_NUM_PARALLEL", Value: strconv.Itoa(int(m.Spec.MaxConcurrencyPerPod))},
-							{Name: "OLLAMA_ORIGINS", Value: "*"},
+					Containers: []corev1.Container{
+						{
+							Image: "ollama/ollama:latest",
+							Name:  "ollama-engine",
+							Ports: []corev1.ContainerPort{{ContainerPort: 11434, Name: "api-port"}},
+							Env: []corev1.EnvVar{
+								{Name: "OLLAMA_NUM_PARALLEL", Value: strconv.Itoa(int(m.Spec.MaxConcurrencyPerPod))},
+								{Name: "OLLAMA_ORIGINS", Value: "*"},
+							},
+							VolumeMounts: []corev1.VolumeMount{{Name: "cache-mount", MountPath: "/root/.ollama"}},
 						},
-						VolumeMounts: []corev1.VolumeMount{{Name: "cache-mount", MountPath: "/root/.ollama"}},
-					}},
+						{
+							Image: "ollama-queue-exporter:local",
+							Name:  "queue-exporter",
+							Ports: []corev1.ContainerPort{
+								{ContainerPort: 8081, Name: "proxy-port"},
+								{ContainerPort: 9113, Name: "metrics-port"},
+							},
+						},
+					},
 					Volumes: []corev1.Volume{{
 						Name: "cache-mount",
 						VolumeSource: corev1.VolumeSource{
@@ -237,11 +303,22 @@ func (r *LLMOptimizedServiceReconciler) deploymentForM5(m *aiv1alpha1.LLMOptimiz
 
 func (r *LLMOptimizedServiceReconciler) serviceForM5(m *aiv1alpha1.LLMOptimizedService) *corev1.Service {
 	svc := &corev1.Service{
-		ObjectMeta: metav1.ObjectMeta{Name: m.Name, Namespace: m.Namespace},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      m.Name,
+			Namespace: m.Namespace,
+			// Selected by the ServiceMonitor, and copied onto scraped metric
+			// samples via its targetLabels so KEDA's PromQL query can filter on it.
+			Labels: map[string]string{"app": m.Name},
+		},
 		Spec: corev1.ServiceSpec{
 			Selector: map[string]string{"app": m.Name},
-			Ports:    []corev1.ServicePort{{Port: 11434, TargetPort: intstr.FromString("api-port")}},
-			Type:     corev1.ServiceTypeClusterIP,
+			Ports: []corev1.ServicePort{
+				// Routed through the queue-exporter sidecar (not straight to Ollama)
+				// so it can count in-flight requests for the metrics-port below.
+				{Name: "api-port", Port: 11434, TargetPort: intstr.FromString("proxy-port"), Protocol: corev1.ProtocolTCP},
+				{Name: "metrics-port", Port: 9113, TargetPort: intstr.FromString("metrics-port"), Protocol: corev1.ProtocolTCP},
+			},
+			Type: corev1.ServiceTypeClusterIP,
 		},
 	}
 	_ = ctrl.SetControllerReference(m, svc, r.Scheme)
@@ -254,5 +331,6 @@ func (r *LLMOptimizedServiceReconciler) SetupWithManager(mgr ctrl.Manager) error
 		Owns(&appsv1.Deployment{}).
 		Owns(&corev1.Service{}).
 		Owns(&kedav1alpha1.ScaledObject{}).
+		Owns(&monitoringv1.ServiceMonitor{}).
 		Complete(r)
 }

@@ -36,6 +36,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	kedav1alpha1 "github.com/kedacore/keda/v2/apis/keda/v1alpha1"
+	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	aiv1alpha1 "mlo.platform/llm-operator/api/v1alpha1"
 	"mlo.platform/llm-operator/internal/controller"
 	// +kubebuilder:scaffold:imports
@@ -51,6 +52,7 @@ func init() {
 
 	utilruntime.Must(aiv1alpha1.AddToScheme(scheme))
 	utilruntime.Must(kedav1alpha1.AddToScheme(scheme))
+	utilruntime.Must(monitoringv1.AddToScheme(scheme))
 	// +kubebuilder:scaffold:scheme
 }
 
