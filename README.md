@@ -1,134 +1,118 @@
-# llm-operator
-Implements LLMOptimizedService Custom Resource Definition (CRD).
+**AI-Native Platform Engine:**
+Local LLM Inference Control PlaneAn enterprise-grade, GitOps-driven Internal Developer Platform (IDP) hosted entirely on local MacBook Pro Apple Silicon (M5) hardware using a Kubernetes orchestration layer (Kind).
+This platform completely abstracts the complexities of AI infrastructure from application developers. By creating a custom Kubernetes controller in Go, application teams can provision optimized, auto-scaling, host-persisted Ollama inference engines using a simple declarative Custom Resource Definition (CRD) called LLMOptimizedService.
 
-## Description
-Implements LLMOptimizedService Custom Resource Definition (CRD).
+Architecture Matrix              [ Developer App Git Manifest ] 
+                            │
+                            ▼
+                     [ ArgoCD Sync Loop ]
+                            │
+                            ▼
+     [ Kind Cluster / MacBook Pro M5 Unified Memory ]
+                            │
+                ┌───────────┴───────────┐
+                ▼                       ▼
+    [ Go Custom Operator ]       [ KEDA Autoscaler ]
+     (LLMOptimizedService)        (Request-Driven Trigger)
+                │                       │
+                ▼                       ▼
+   ┌─────────────────────────┐     ┌─────────────────────────┐
+   │  Ollama Pod Replica 1   │     │  Ollama Pod Replica N   │
+   │ ┌─────────────────────┐ │     │ ┌─────────────────────┐ │
+   │ │  cache-warm-sidecar │ │     │ │  cache-warm-sidecar │ │
+   │ └──────────┬──────────┘ │     │ └──────────┬──────────┘ │
+   └────────────┼────────────┘     └────────────┼────────────┘
+                │                               │
+                └───────────────┬───────────────┘
+                                ▼
+                 [ Mac NVMe HostPath Storage ]
+                  (/Users/Shared/ollama_cache)
 
-## Getting Started
+**Core Engineering Features**
+**Custom Go Operator Control Plane:** Extends the native Kubernetes API with an ai.mlo.platform/v1alpha1 controller using kubebuilder.
+**Hardware-Aware Model Storage:** Uses a custom bridge layer to map cluster storage to a persistent local macOS directory (/Users/Shared/ollama_cache). This prevents multi-gigabyte models from being re-downloaded when pods cycle.
+**Smart Model Warming:** Implements a container sidecar lifecycle pattern with restartPolicy: Always. The sidecar holds the container boot sequence until the inference API is awake, then automatically pre-warms the target model via loopback 127.0.0.1.
+**Intelligent Request-Driven Autoscaling:** Replaces lagged system metric spikes (CPU/RAM) with reactive HTTP request-queue length profiling via KEDA and Prometheus.
+**FinOps Observability Engine:** Features an integrated Grafana dashboard tracking operational metrics (TPS, queue depths) along with financial metrics, showing real-world value compared to commercial cloud APIs.
 
-### Prerequisites
-- go version v1.24.6+
-- docker version 17.03+.
-- kubectl version v1.11.3+.
-- Access to a Kubernetes v1.11.3+ cluster.
+📁 Repository Structure
+├── 📁 api/v1alpha1/
+│   └── llmoptimizedservice_types.go    # Custom Resource Schema Specs
+├── 📁 internal/controller/
+│   └── llmoptimizedservice_controller.go# Reconciler logic (Deployment/Service/KEDA generation)
+├── 📁 gitops-infra/
+│   ├── 📁 system-operators/
+│   │   └── operator-bundle.yaml        # Manifest for the containerized Go controller
+│   └── 📁 apps/
+│       ├── sample-llm.yaml             # Developer consumption manifest
+│       ├── grafana-deployment.yaml     # Custom-mounted Prometheus-Grafana stack
+│       └── dashboard-config.yaml       # ConfigMap containing the FinOps JSON dashboard
 
-### To Deploy on the cluster
-**Build and push your image to the location specified by `IMG`:**
-
-```sh
-make docker-build docker-push IMG=<some-registry>/llm-operator:tag
+**Developer Interface (The Abstracted CRD)**
+Application developers don't need to write complex Kubernetes manifests or configure network settings. They can easily deploy an isolated, auto-scaling LLM instance using the custom LLMOptimizedService CRD:
+```yaml
+apiVersion: ai.mlo.platform/v1alpha1
+kind: LLMOptimizedService
+metadata:
+  name: secure-billing-llm
+  namespace: default
+spec:
+  modelPath: "llama3"
+  minReplicas: 1
+  maxReplicas: 3
+  maxConcurrencyPerPod: 2
 ```
 
-**NOTE:** This image ought to be published in the personal registry you specified.
-And it is required to have access to pull the image from the working environment.
-Make sure you have the proper permission to the registry if the above commands don’t work.
+**🚀 Installation & GitOps Workflow**
+**1. Provision the M5 Kind Bridge Cluster**
 
-**Install the CRDs into the cluster:**
+```bash
+# Prepare the physical host persistence target on macOS
+mkdir -p /Users/Shared/ollama_cache
 
-```sh
-make install
+# Create the cluster configuration linking macOS and Docker namespaces
+cat <<EOF > kind-config.yaml
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+- role: control-plane
+  extraMounts:
+  - hostPath: /Users/Shared/ollama_cache
+    containerPath: /mnt/ollama_cache
+EOF
+
+kind create cluster --name m5-platform --config kind-config.yaml
+```
+**2. Side-Load the Platform Operator**
+```bash
+# Build the binary container inside your local runtime env
+make docker-build IMG=mlo.platform/llm-operator:v1
+
+# Inject directly into local Kind nodes without using external registries
+kind load docker-image mlo.platform/llm-operator:v1 --name m5-platform
 ```
 
-**Deploy the Manager to the cluster with the image specified by `IMG`:**
+**3. Deploy the GitOps Application Pipe**
+```bash
+# Initialize core system tools (ArgoCD & KEDA)
+kubectl create namespace argocd
+kubectl apply -n argocd -f https://githubusercontent.com
+kubectl apply -f https://github.com
 
-```sh
-make deploy IMG=<some-registry>/llm-operator:tag
+# Push the platform application mapping file to cluster namespace
+kubectl apply -f gitops-infra/apps/argocd-app.yaml
+
 ```
 
-> **NOTE**: If you encounter RBAC errors, you may need to grant yourself cluster-admin
-privileges or be logged in as admin.
+**📊 Observability & FinOps Realization**
+The monitoring layer uses a custom dashboard configuration mounted directly into a kube-prometheus Grafana instance. This allows you to visualize cluster operations and track financial savings:
 
-**Create instances of your solution**
-You can apply the samples (examples) from the config/sample:
-
-```sh
-kubectl apply -k config/samples/
+```promql
+# FinOps Value Chart: Tracks money saved in 24 hours vs cloud model pricing
+(sum(increase(ollama_prompt_tokens_total[24h])) * 0.0000015) + (sum(increase(ollama_completion_tokens_total[24h])) * 0.000002)
 ```
 
->**NOTE**: Ensure that the samples has default values to test it out.
-
-### To Uninstall
-**Delete the instances (CRs) from the cluster:**
-
-```sh
-kubectl delete -k config/samples/
-```
-
-**Delete the APIs(CRDs) from the cluster:**
-
-```sh
-make uninstall
-```
-
-**UnDeploy the controller from the cluster:**
-
-```sh
-make undeploy
-```
-
-## Project Distribution
-
-Following the options to release and provide this solution to the users.
-
-### By providing a bundle with all YAML files
-
-1. Build the installer for the image built and published in the registry:
-
-```sh
-make build-installer IMG=<some-registry>/llm-operator:tag
-```
-
-**NOTE:** The makefile target mentioned above generates an 'install.yaml'
-file in the dist directory. This file contains all the resources built
-with Kustomize, which are necessary to install this project without its
-dependencies.
-
-2. Using the installer
-
-Users can just run 'kubectl apply -f <URL for YAML BUNDLE>' to install
-the project, i.e.:
-
-```sh
-kubectl apply -f https://raw.githubusercontent.com/<org>/llm-operator/<tag or branch>/dist/install.yaml
-```
-
-### By providing a Helm Chart
-
-1. Build the chart using the optional helm plugin
-
-```sh
-kubebuilder edit --plugins=helm/v2-alpha
-```
-
-2. See that a chart was generated under 'dist/chart', and users
-can obtain this solution from there.
-
-**NOTE:** If you change the project, you need to update the Helm Chart
-using the same command above to sync the latest changes. Furthermore,
-if you create webhooks, you need to use the above command with
-the '--force' flag and manually ensure that any custom configuration
-previously added to 'dist/chart/values.yaml' or 'dist/chart/manager/manager.yaml'
-is manually re-applied afterwards.
-
-## Contributing
-// TODO(user): Add detailed information on how you would like others to contribute to this project
-
-**NOTE:** Run `make help` for more information on all potential `make` targets
-
-More information can be found via the [Kubebuilder Documentation](https://book.kubebuilder.io/introduction.html)
-
-## License
-
-Copyright 2026.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
+**Dashboard Layout Preview**
+**1. Live Scaling Tracking:** Real-time graphs showing inbound request queues side-by-side with active pod replica counts created by KEDA.
+**2. Unified Memory Velocity:** Tracks tokens-per-second (TPS) to evaluate performance metrics across your Apple Silicon hardware.
+**3. Accumulated Cloud Savings:** A clear metric showing the real-world dollar amount saved by processing data locally.
