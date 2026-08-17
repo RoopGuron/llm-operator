@@ -1,0 +1,18 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: secure-billing-llm
+  namespace: default
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: secure-billing-llm.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: secure-billing-llm
+                port:
+                  number: 11434
