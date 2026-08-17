@@ -1,0 +1,101 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: m5-ai-platform-dashboard
+  namespace: monitoring
+  labels:
+    # CRITICAL: This label tells Grafana's sidecar to automatically import this as a dashboard
+    grafana_dashboard: "1"
+  annotations:
+    grafana.io/folder: "AI Platform Engine"
+data:
+  ai-platform-metrics.json: |
+    {
+      "annotations": { "list": [] },
+      "editable": true,
+      "fiscalYearStartMonth": 0,
+      "graphTooltip": 0,
+      "id": null,
+      "links": [],
+      "liveNow": false,
+      "panels": [
+        {
+          "title": "📈 KEDA Live Scaling Engine: Queue Length vs Active Pods",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+          "id": 1,
+          "targets": [
+            {
+              "datasource": { "type": "prometheus", "uid": "prometheus" },
+              "editorMode": "code",
+              "expr": "sum(ollama_request_queue_length{app=\"secure-billing-llm\"})",
+              "legendFormat": "Inbound Request Queue Length",
+              "range": true
+            },
+            {
+              "datasource": { "type": "prometheus", "uid": "prometheus" },
+              "editorMode": "code",
+              "expr": "sum(kube_deployment_status_replicas{deployment=\"secure-billing-llm\"})",
+              "legendFormat": "Active Local Pod Replicas",
+              "range": true
+            }
+          ],
+          "options": {
+            "legend": { "calcs": [], "displayMode": "list", "placement": "bottom" }
+          }
+        },
+        {
+          "title": "⚡ Token Generation Velocity (TPS)",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+          "id": 2,
+          "targets": [
+            {
+              "datasource": { "type": "prometheus", "uid": "prometheus" },
+              "editorMode": "code",
+              "expr": "sum(rate(ollama_tokens_generated_total[1m]))",
+              "legendFormat": "Tokens/Sec Generated",
+              "range": true
+            }
+          ]
+        },
+        {
+          "title": "📊 Total Estimated Cost Saved (vs Cloud APIs)",
+          "type": "stat",
+          "gridPos": { "h": 6, "w": 24, "x": 0, "y": 8 },
+          "id": 3,
+          "targets": [
+            {
+              "datasource": { "type": "prometheus", "uid": "prometheus" },
+              "editorMode": "code",
+              "expr": "(sum(increase(ollama_prompt_tokens_total[24h])) * 0.0000015) + (sum(increase(ollama_completion_tokens_total[24h])) * 0.000002)",
+              "legendFormat": "USD Saved (24h Window)",
+              "range": true
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "currencyUSD",
+              "color": { "mode": "fixed", "fixedColor": "green" },
+              "mappings": []
+            }
+          },
+          "options": {
+            "graphMode": "area",
+            "justifyMode": "center",
+            "orientation": "auto",
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "textMode": "value_and_name"
+          }
+        }
+      ],
+      "refresh": "5s",
+      "schemaVersion": 38,
+      "style": "dark",
+      "tags": ["ai", "platform", "finops"],
+      "time": { "from": "now-1h", "to": "now" },
+      "timepicker": {},
+      "timezone": "",
+      "title": "M5 MacBook Pro AI Platform Infrastructure",
+      "version": 1
+    }

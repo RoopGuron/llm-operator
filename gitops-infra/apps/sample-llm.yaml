@@ -1,0 +1,15 @@
+apiVersion: ai.mlo.platform/v1alpha1
+kind: LLMOptimizedService
+metadata:
+  name: secure-billing-llm
+  namespace: default
+spec:
+  modelPath: "llama3.2"
+  minReplicas: 1
+  maxReplicas: 3
+  maxConcurrencyPerPod: 4
+  # uncomment line below to use ....as scaletozero is flimsy
+  scaleToZero: false
+  #scaleToZero: true
+  idleTimeoutSeconds: 120
+  

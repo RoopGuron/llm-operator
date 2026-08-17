@@ -107,8 +107,3 @@ type LLMOptimizedServiceList struct {
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []LLMOptimizedService `json:"items"`
 }
-
-func init() {
-	SchemeBuilder.Register(&LLMOptimizedService{}, &LLMOptimizedServiceList{})
-
-}
