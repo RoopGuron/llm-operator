@@ -6,10 +6,10 @@ Since you are using Kind, you don't even need to push your image to a public reg
 
 ```bash
 # 1. Build the manager container image locally
-make docker-build IMG=mlo.platform/llm-operator:v1
+make docker-build IMG=mlo.platform/local-llm-inference-control-plane:v1
 
 # 2. Side-load the image directly into your M5 Kind cluster nodes
-kind load docker-image mlo.platform/llm-operator:v1 --name m5-platform
+kind load docker-image mlo.platform/local-llm-inference-control-plane:v1 --name m5-platform
 ```
 
 **2. Export the Production Manifests**
@@ -19,7 +19,7 @@ Kubebuilder creates all the deployment manifests you need to run your operator i
 # Render all controller manifests (Deployment, RBAC, CRDs) into a single file
 kubectl kustomize config/default > ~/gitops-infra/system-operators/operator-bundle.yaml
 ```
-*Note: Open ~/gitops-infra/operator-bundle.yaml, search for image: controller:latest, and change it to your loaded image: image: mlo.platform/llm-operator:v1 so the cluster knows where to pull it).*
+*Note: Open ~/gitops-infra/operator-bundle.yaml, search for image: controller:latest, and change it to your loaded image: image: mlo.platform/local-llm-inference-control-plane:v1 so the cluster knows where to pull it).*
 
 **3. Let ArgoCD Manage Everything**
 Update your GitHub repository to track both the core operator infrastructure and your custom workloads. Your final production GitOps repository structure will look like this:

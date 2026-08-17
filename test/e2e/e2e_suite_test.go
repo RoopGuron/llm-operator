@@ -28,12 +28,12 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"mlo.platform/llm-operator/test/utils"
+	"mlo.platform/local-llm-inference-control-plane/test/utils"
 )
 
 var (
 	// managerImage is the manager image to be built and loaded for testing.
-	managerImage = "example.com/llm-operator:v0.0.1"
+	managerImage = "example.com/local-llm-inference-control-plane:v0.0.1"
 	// shouldCleanupCertManager tracks whether CertManager was installed by this suite.
 	shouldCleanupCertManager = false
 )
@@ -46,7 +46,7 @@ var (
 // To skip CertManager installation, set: CERT_MANAGER_INSTALL_SKIP=true
 func TestE2E(t *testing.T) {
 	RegisterFailHandler(Fail)
-	_, _ = fmt.Fprintf(GinkgoWriter, "Starting llm-operator e2e test suite\n")
+	_, _ = fmt.Fprintf(GinkgoWriter, "Starting local-llm-inference-control-plane e2e test suite\n")
 	RunSpecs(t, "e2e suite")
 }
 

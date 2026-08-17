@@ -1,4 +1,4 @@
-module mlo.platform/llm-operator
+module mlo.platform/local-llm-inference-control-plane
 
 go 1.26.0
 

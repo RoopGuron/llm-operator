@@ -6,8 +6,8 @@ cliVersion: 4.15.0
 domain: mlo.platform
 layout:
 - go.kubebuilder.io/v4
-projectName: llm-operator
-repo: mlo.platform/llm-operator
+projectName: local-llm-inference-control-plane
+repo: mlo.platform/local-llm-inference-control-plane
 resources:
 - api:
     crdVersion: v1
@@ -16,6 +16,6 @@ resources:
   domain: mlo.platform
   group: ai
   kind: LLMOptimizedService
-  path: mlo.platform/llm-operator/api/v1alpha1
+  path: mlo.platform/local-llm-inference-control-plane/api/v1alpha1
   version: v1alpha1
 version: "3"

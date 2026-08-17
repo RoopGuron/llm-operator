@@ -27,7 +27,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	aiv1alpha1 "mlo.platform/llm-operator/api/v1alpha1"
+	aiv1alpha1 "mlo.platform/local-llm-inference-control-plane/api/v1alpha1"
 )
 
 var _ = Describe("LLMOptimizedService Controller", func() {

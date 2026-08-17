@@ -30,20 +30,20 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"mlo.platform/llm-operator/test/utils"
+	"mlo.platform/local-llm-inference-control-plane/test/utils"
 )
 
 // namespace where the project is deployed in
-const namespace = "llm-operator-system"
+const namespace = "llm-icp-system"
 
 // serviceAccountName created for the project
-const serviceAccountName = "llm-operator-controller-manager"
+const serviceAccountName = "llm-icp-controller-manager"
 
 // metricsServiceName is the name of the metrics service of the project
-const metricsServiceName = "llm-operator-controller-manager-metrics-service"
+const metricsServiceName = "llm-icp-controller-manager-metrics-service"
 
 // metricsRoleBindingName is the name of the RBAC that will be created to allow get the metrics data
-const metricsRoleBindingName = "llm-operator-metrics-binding"
+const metricsRoleBindingName = "llm-icp-metrics-binding"
 
 var _ = Describe("Manager", Ordered, func() {
 	var controllerPodName string
@@ -176,7 +176,7 @@ var _ = Describe("Manager", Ordered, func() {
 		It("should ensure the metrics endpoint is serving metrics", func() {
 			By("creating a ClusterRoleBinding for the service account to allow access to metrics")
 			cmd := exec.Command("kubectl", "create", "clusterrolebinding", metricsRoleBindingName,
-				"--clusterrole=llm-operator-metrics-reader",
+				"--clusterrole=llm-icp-metrics-reader",
 				fmt.Sprintf("--serviceaccount=%s:%s", namespace, serviceAccountName),
 			)
 			_, err := utils.Run(cmd)

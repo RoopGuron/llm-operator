@@ -3,9 +3,9 @@ kind: Namespace
 metadata:
   labels:
     app.kubernetes.io/managed-by: kustomize
-    app.kubernetes.io/name: llm-operator
+    app.kubernetes.io/name: llm-icp
     control-plane: controller-manager
-  name: llm-operator-system
+  name: llm-icp-system
 ---
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
@@ -120,18 +120,18 @@ kind: ServiceAccount
 metadata:
   labels:
     app.kubernetes.io/managed-by: kustomize
-    app.kubernetes.io/name: llm-operator
-  name: llm-operator-controller-manager
-  namespace: llm-operator-system
+    app.kubernetes.io/name: llm-icp
+  name: llm-icp-controller-manager
+  namespace: llm-icp-system
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   labels:
     app.kubernetes.io/managed-by: kustomize
-    app.kubernetes.io/name: llm-operator
-  name: llm-operator-leader-election-role
-  namespace: llm-operator-system
+    app.kubernetes.io/name: llm-icp
+  name: llm-icp-leader-election-role
+  namespace: llm-icp-system
 rules:
 - apiGroups:
   - ""
@@ -170,8 +170,8 @@ kind: ClusterRole
 metadata:
   labels:
     app.kubernetes.io/managed-by: kustomize
-    app.kubernetes.io/name: llm-operator
-  name: llm-operator-llmoptimizedservice-admin-role
+    app.kubernetes.io/name: llm-icp
+  name: llm-icp-llmoptimizedservice-admin-role
 rules:
 - apiGroups:
   - ai.mlo.platform
@@ -191,8 +191,8 @@ kind: ClusterRole
 metadata:
   labels:
     app.kubernetes.io/managed-by: kustomize
-    app.kubernetes.io/name: llm-operator
-  name: llm-operator-llmoptimizedservice-editor-role
+    app.kubernetes.io/name: llm-icp
+  name: llm-icp-llmoptimizedservice-editor-role
 rules:
 - apiGroups:
   - ai.mlo.platform
@@ -218,8 +218,8 @@ kind: ClusterRole
 metadata:
   labels:
     app.kubernetes.io/managed-by: kustomize
-    app.kubernetes.io/name: llm-operator
-  name: llm-operator-llmoptimizedservice-viewer-role
+    app.kubernetes.io/name: llm-icp
+  name: llm-icp-llmoptimizedservice-viewer-role
 rules:
 - apiGroups:
   - ai.mlo.platform
@@ -239,7 +239,7 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: llm-operator-manager-role
+  name: llm-icp-manager-role
 rules:
 - apiGroups:
   - ""
@@ -313,7 +313,7 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: llm-operator-metrics-auth-role
+  name: llm-icp-metrics-auth-role
 rules:
 - apiGroups:
   - authentication.k8s.io
@@ -331,7 +331,7 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: llm-operator-metrics-reader
+  name: llm-icp-metrics-reader
 rules:
 - nonResourceURLs:
   - /metrics
@@ -343,56 +343,56 @@ kind: RoleBinding
 metadata:
   labels:
     app.kubernetes.io/managed-by: kustomize
-    app.kubernetes.io/name: llm-operator
-  name: llm-operator-leader-election-rolebinding
-  namespace: llm-operator-system
+    app.kubernetes.io/name: llm-icp
+  name: llm-icp-leader-election-rolebinding
+  namespace: llm-icp-system
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
-  name: llm-operator-leader-election-role
+  name: llm-icp-leader-election-role
 subjects:
 - kind: ServiceAccount
-  name: llm-operator-controller-manager
-  namespace: llm-operator-system
+  name: llm-icp-controller-manager
+  namespace: llm-icp-system
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
   labels:
     app.kubernetes.io/managed-by: kustomize
-    app.kubernetes.io/name: llm-operator
-  name: llm-operator-manager-rolebinding
+    app.kubernetes.io/name: llm-icp
+  name: llm-icp-manager-rolebinding
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: llm-operator-manager-role
+  name: llm-icp-manager-role
 subjects:
 - kind: ServiceAccount
-  name: llm-operator-controller-manager
-  namespace: llm-operator-system
+  name: llm-icp-controller-manager
+  namespace: llm-icp-system
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: llm-operator-metrics-auth-rolebinding
+  name: llm-icp-metrics-auth-rolebinding
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: llm-operator-metrics-auth-role
+  name: llm-icp-metrics-auth-role
 subjects:
 - kind: ServiceAccount
-  name: llm-operator-controller-manager
-  namespace: llm-operator-system
+  name: llm-icp-controller-manager
+  namespace: llm-icp-system
 ---
 apiVersion: v1
 kind: Service
 metadata:
   labels:
     app.kubernetes.io/managed-by: kustomize
-    app.kubernetes.io/name: llm-operator
+    app.kubernetes.io/name: llm-icp
     control-plane: controller-manager
-  name: llm-operator-controller-manager-metrics-service
-  namespace: llm-operator-system
+  name: llm-icp-controller-manager-metrics-service
+  namespace: llm-icp-system
 spec:
   ports:
   - name: https
@@ -400,7 +400,7 @@ spec:
     protocol: TCP
     targetPort: 8443
   selector:
-    app.kubernetes.io/name: llm-operator
+    app.kubernetes.io/name: llm-icp
     control-plane: controller-manager
 ---
 apiVersion: apps/v1
@@ -408,22 +408,22 @@ kind: Deployment
 metadata:
   labels:
     app.kubernetes.io/managed-by: kustomize
-    app.kubernetes.io/name: llm-operator
+    app.kubernetes.io/name: llm-icp
     control-plane: controller-manager
-  name: llm-operator-controller-manager
-  namespace: llm-operator-system
+  name: llm-icp-controller-manager
+  namespace: llm-icp-system
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app.kubernetes.io/name: llm-operator
+      app.kubernetes.io/name: llm-icp
       control-plane: controller-manager
   template:
     metadata:
       annotations:
         kubectl.kubernetes.io/default-container: manager
       labels:
-        app.kubernetes.io/name: llm-operator
+        app.kubernetes.io/name: llm-icp
         control-plane: controller-manager
     spec:
       containers:
@@ -433,7 +433,7 @@ spec:
         - --health-probe-bind-address=:8081
         command:
         - /manager
-        image: mlo.platform/llm-operator:v1
+        image: mlo.platform/local-llm-inference-control-plane:v1
         livenessProbe:
           httpGet:
             path: /healthz
@@ -469,6 +469,6 @@ spec:
         runAsNonRoot: true
         seccompProfile:
           type: RuntimeDefault
-      serviceAccountName: llm-operator-controller-manager
+      serviceAccountName: llm-icp-controller-manager
       terminationGracePeriodSeconds: 10
       volumes: []

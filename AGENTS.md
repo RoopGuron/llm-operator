@@ -1,4 +1,4 @@
-# llm-operator - AI Agent Guide
+# local-llm-inference-control-plane - AI Agent Guide
 
 ## Project Structure
 

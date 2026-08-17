@@ -37,8 +37,8 @@ import (
 
 	kedav1alpha1 "github.com/kedacore/keda/v2/apis/keda/v1alpha1"
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
-	aiv1alpha1 "mlo.platform/llm-operator/api/v1alpha1"
-	"mlo.platform/llm-operator/internal/controller"
+	aiv1alpha1 "mlo.platform/local-llm-inference-control-plane/api/v1alpha1"
+	"mlo.platform/local-llm-inference-control-plane/internal/controller"
 	// +kubebuilder:scaffold:imports
 )
 

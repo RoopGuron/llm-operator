@@ -118,10 +118,10 @@ kind create cluster --name m5-platform --config kind-config.yaml
 
 ```bash
 # Build the binary container inside your local runtime env
-make docker-build IMG=mlo.platform/llm-operator:v1
+make docker-build IMG=mlo.platform/local-llm-inference-control-plane:v1
 
 # Inject directly into local Kind nodes without using external registries
-kind load docker-image mlo.platform/llm-operator:v1 --name m5-platform
+kind load docker-image mlo.platform/local-llm-inference-control-plane:v1 --name m5-platform
 ```
 
 **3. Deploy the GitOps Application Pipe**
