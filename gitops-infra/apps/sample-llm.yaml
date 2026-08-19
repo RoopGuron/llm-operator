@@ -9,7 +9,7 @@ spec:
   maxReplicas: 3
   maxConcurrencyPerPod: 4
   # uncomment line below to use ....as scaletozero is flimsy
-  scaleToZero: false
-  # scaleToZero: true
+  # scaleToZero: false
+  scaleToZero: true
   idleTimeoutSeconds: 120
   
